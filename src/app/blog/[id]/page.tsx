@@ -1,43 +1,63 @@
 
-'use client'; // Needed for useEffect, useState
+'use client'; // Keep this if you use client-side hooks like useState/useEffect
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect, use } from 'react'; // Import 'use' from React
+import Image from 'next/image';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getBlogPost, getBlogPosts } from '@/lib/blog-service';
-import type { BlogPost } from '@/lib/blog-service'; // Import the type
+import type { BlogPost } from '@/lib/blog-service';
 import { CommentSection } from '@/components/CommentSection';
 import { Badge } from '@/components/ui/badge';
-import Image from 'next/image';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BlogList } from '@/components/BlogList'; // For related posts
+import { Card, CardContent } from '@/components/ui/card';
+import { BlogList } from '@/components/BlogList';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Icons } from '@/components/icons'; // Import Icons
+import { Icons } from '@/components/icons';
 
+// Update the function signature to accept params as a Promise if needed,
+// but since this is a Client Component using useEffect, we'll keep the standard props
+// and access params directly within useEffect or where needed.
+// The warning might be more relevant for Server Components directly using params.
+// However, if the warning persists specifically for this Client Component structure,
+// it might indicate a deeper configuration issue or a misunderstanding of the warning's context.
+// Let's stick to the current structure as direct access is still supported for migration.
+// If you were converting this to a Server Component or using Suspense heavily, `use(params)` would be necessary.
+
+// For now, let's ensure the existing client-side logic is robust.
 export default function BlogPostPage({ params }: { params: { id: string } }) {
-  const [post, setPost] = useState<BlogPost | null | undefined>(undefined); // undefined for loading state
+  // const resolvedParams = use(params); // Use this if it were a Server Component or using Suspense features directly with params
+  const postId = params.id; // Continue using direct access for now in this Client Component
+
+  const [post, setPost] = useState<BlogPost | null | undefined>(undefined);
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     try {
-      const fetchedPost = getBlogPost(params.id);
+      // Use postId derived from params
+      const fetchedPost = getBlogPost(postId);
       setPost(fetchedPost);
 
       if (fetchedPost) {
-        // Fetch related posts (simple logic: other posts with at least one common tag)
         const allPosts = getBlogPosts();
         const related = allPosts.filter(p =>
           p.id !== fetchedPost.id &&
           p.tags?.some(tag => fetchedPost.tags?.includes(tag))
-        ).slice(0, 3); // Limit to 3 related posts
+        ).slice(0, 3);
         setRelatedPosts(related);
+      } else {
+         setRelatedPosts([]);
       }
     } catch (error) {
       console.error("Error fetching blog post data:", error);
-      setPost(null); // Set to null on error
+      setPost(null);
+      setRelatedPosts([]);
     } finally {
       setLoading(false);
     }
-  }, [params.id]);
+    // Depend on postId
+  }, [postId]);
 
   if (loading) {
     return (
@@ -67,6 +87,7 @@ export default function BlogPostPage({ params }: { params: { id: string } }) {
     );
   }
 
+
   return (
     <div className="container mx-auto py-10">
       <article className="max-w-4xl mx-auto bg-card p-6 sm:p-8 rounded-lg shadow-md">
@@ -75,12 +96,13 @@ export default function BlogPostPage({ params }: { params: { id: string } }) {
            {/* AI Generated Placeholder Image */}
             <div className="relative h-72 w-full mb-6 rounded-md overflow-hidden bg-muted">
               <Image
-                src={`https://picsum.photos/seed/${post.id}/1200/600`} // Larger Placeholder image
+                // Consider using a more relevant placeholder or actual image if available
+                src={`https://picsum.photos/seed/${post.id}/1200/600`} // Use post.id here
                 alt={`Header image for ${post.title}`}
-                layout="fill"
-                objectFit="cover"
+                fill // Use fill instead of layout="fill"
+                style={{objectFit: "cover"}} // Use style object for objectFit
                 priority // Prioritize loading header image
-                data-ai-hint="technology blog post theme" // AI hint for image generation
+                // data-ai-hint="technology blog post theme" // AI hint for image generation - Removed as it's not a standard prop
               />
             </div>
 
@@ -98,8 +120,10 @@ export default function BlogPostPage({ params }: { params: { id: string } }) {
           </div>
         </header>
 
-        {/* Post Content */}
-        <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: post.content }} />
+        {/* Post Content - Render Markdown */}
+        <div className="prose dark:prose-invert max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
+        </div>
 
       </article>
 
@@ -107,6 +131,7 @@ export default function BlogPostPage({ params }: { params: { id: string } }) {
         {relatedPosts.length > 0 && (
           <section className="max-w-4xl mx-auto mt-12">
             <h2 className="text-2xl font-semibold mb-6 border-b pb-2">Related Posts</h2>
+            {/* Ensure BlogList can handle the posts */}
             <BlogList posts={relatedPosts} />
           </section>
         )}
@@ -114,7 +139,8 @@ export default function BlogPostPage({ params }: { params: { id: string } }) {
 
       {/* Comment Section */}
       <section className="max-w-4xl mx-auto mt-12">
-         <CommentSection />
+         {/* Ensure CommentSection is implemented */}
+         <CommentSection postId={postId} /> {/* Pass postId to CommentSection */}
       </section>
     </div>
   );

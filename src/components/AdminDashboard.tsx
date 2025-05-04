@@ -15,12 +15,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Icons } from '@/components/icons';
 import { v4 as uuidv4 } from 'uuid';
 import { suggestTags } from '@/ai/flows/suggest-tags'; // Import the AI flow
+import ReactMarkdown from 'react-markdown'; // <-- Thêm import này
+import remarkGfm from 'remark-gfm'; // <-- Thêm import này nếu bạn dùng GitHub Flavored Markdown (tables, strikethrough, etc.)
 
 export const AdminDashboard = () => {
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(''); // Content will now be Markdown
   const [tags, setTags] = useState('');
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Loading state for posts
@@ -86,17 +88,20 @@ export const AdminDashboard = () => {
     // Simulate async operation
     setTimeout(() => {
       try {
-        const postData = {
+        const postData: BlogPost = { // Ensure BlogPost type matches expected structure
           id: editingPostId || uuidv4(),
           title,
           summary,
-          content,
-          tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''), // Filter empty tags
-          date: new Date().toISOString().slice(0, 10),
+          content, // Content is now Markdown
+          tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
+          date: new Date().toISOString().slice(0, 10), // Or use existing date if editing
+          // Add other necessary fields if your BlogPost type requires them
         };
 
         if (editingPostId) {
-          updateBlogPost(editingPostId, postData);
+          // Find the existing post to preserve its original date if needed
+          const existingPost = blogPosts.find(p => p.id === editingPostId);
+          updateBlogPost(editingPostId, { ...postData, date: existingPost?.date || postData.date });
           toast({ title: "Success", description: "Blog post updated." });
         } else {
           createBlogPost(postData);
@@ -104,11 +109,14 @@ export const AdminDashboard = () => {
         }
         fetchPosts(); // Re-fetch posts to update the list
         resetForm();
-      } catch (error) {
+      } catch (error: any) { // Catch potential errors more specifically if possible
          console.error("Error saving post:", error);
-         toast({ title: "Error", description: `Failed to ${editingPostId ? 'update' : 'create'} post.`, variant: "destructive" });
+         // Provide more specific error feedback if possible
+         const action = editingPostId ? 'update' : 'create';
+         toast({ title: "Error", description: `Failed to ${action} post. ${error.message || ''}`, variant: "destructive" });
          setIsSubmitting(false); // Ensure submit button is re-enabled on error
       }
+      // Removed finally block as setIsSubmitting(false) is handled in resetForm and catch block
     }, 500); // Simulate network delay
   };
 
@@ -174,18 +182,41 @@ export const AdminDashboard = () => {
               disabled={isSubmitting}
               rows={2}
             />
-            <Textarea
-              placeholder="Content (Supports HTML)"
-              aria-label="Post Content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              required
-              disabled={isSubmitting}
-              rows={10}
-              className="min-h-[200px]"
-            />
-             <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                <Input
+
+            {/* Markdown Editor and Preview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Markdown Input */}
+              <div className="space-y-2">
+                 <label htmlFor="content" className="text-sm font-medium">Content (Markdown)</label>
+                 <Textarea
+                   id="content"
+                   placeholder="Write your blog content using Markdown..."
+                   aria-label="Post Content in Markdown"
+                   value={content}
+                   onChange={(e) => setContent(e.target.value)}
+                   required
+                   disabled={isSubmitting}
+                   rows={15} // Adjust rows as needed
+                   className="min-h-[300px] font-mono text-sm" // Style for code editing feel
+                 />
+              </div>
+
+              {/* Markdown Preview */}
+              <div className="space-y-2">
+                 <label className="text-sm font-medium">Preview</label>
+                 <Card className="min-h-[300px] h-full p-4 border rounded-md overflow-auto">
+                   <div className="prose dark:prose-invert max-w-none">
+                     {/* Ensure ReactMarkdown is used here */}
+                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || "*Preview will appear here*"}</ReactMarkdown>
+                   </div>
+                 </Card>
+              </div>
+            </div>
+
+
+            {/* Tags Input and AI Suggestion */}
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+              <Input
                   type="text"
                   placeholder="Tags (comma separated, e.g., AI, Tech, News)"
                   aria-label="Post Tags"
@@ -206,6 +237,7 @@ export const AdminDashboard = () => {
                     {isSuggestingTags ? 'Suggesting...' : 'Suggest Tags (AI)'}
                  </Button>
              </div>
+
             <div className="flex justify-end gap-2 pt-4">
               {editingPostId && (
                  <Button type="button" variant="outline" onClick={resetForm} disabled={isSubmitting}>
@@ -238,14 +270,14 @@ export const AdminDashboard = () => {
             <div className="space-y-4">
               {blogPosts.map((post) => (
                 <Card key={post.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 shadow-sm border">
-                  <div className="mb-3 sm:mb-0">
+                  <div className="mb-3 sm:mb-0 flex-grow mr-4"> {/* Added flex-grow and margin */}
                     <h3 className="text-lg font-semibold">{post.title}</h3>
-                    <p className="text-sm text-muted-foreground">{post.summary}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{post.summary}</p> {/* Added line-clamp */}
                      <div className="mt-2 flex flex-wrap gap-1">
                         {post.tags?.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
                      </div>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex gap-2 flex-shrink-0 self-start sm:self-center"> {/* Adjusted alignment */}
                     <Button size="sm" variant="outline" onClick={() => handleEdit(post)} aria-label={`Edit ${post.title}`}>
                       <Icons.edit className="h-4 w-4" />
                     </Button>
